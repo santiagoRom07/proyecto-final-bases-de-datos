@@ -65,8 +65,9 @@ const tablas = {
       { nombre: "nombre_materia", etiqueta: "Nombre" },
       { nombre: "id_carrera", etiqueta: "Carrera", numero: true,
         opciones: () => opciones("/carreras", "id_carrera", (c) => c.nombre_carrera) },
+      { nombre: "creditos", etiqueta: "Créditos", tipo: "number", numero: true },
     ],
-    columnas: [["id_materia", "ID"], ["nombre_materia", "Nombre"], ["nombre_carrera", "Carrera"]],
+    columnas: [["id_materia", "ID"], ["nombre_materia", "Nombre"], ["nombre_carrera", "Carrera"], ["creditos", "Créditos"]],
   },
   estudiantes: {
     titulo: "Estudiantes", id: "id_estudiante",

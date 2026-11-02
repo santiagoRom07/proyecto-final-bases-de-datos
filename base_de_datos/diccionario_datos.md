@@ -29,6 +29,7 @@ Programas académicos de la universidad.
 | id_materia | SERIAL | PK | Identificador de la materia |
 | nombre_materia | VARCHAR(100) | NOT NULL | Nombre de la materia |
 | id_carrera | INT | NOT NULL, FK → carrera (ON DELETE RESTRICT) | Carrera a la que pertenece |
+| creditos | INT | NOT NULL, CHECK > 0 | Créditos de la materia (dependen de la materia, no del grupo: 3NF) |
 
 ## materia_prerrequisito
 Relación M:N de `materia` consigo misma: qué materias hay que aprobar antes de otra.
@@ -47,7 +48,6 @@ Una oferta concreta de una materia en un semestre.
 |---|---|---|---|
 | id_grupo | SERIAL | PK | Identificador del grupo |
 | cupo | INT | NOT NULL, CHECK > 0 | Máximo de estudiantes |
-| creditos | INT | NOT NULL, CHECK > 0 | Créditos de la materia en ese grupo |
 | semestre | VARCHAR(20) | NOT NULL | Periodo, p. ej. `2026-1` |
 | id_profesor | INT | NOT NULL, FK → profesor (ON DELETE RESTRICT) | Profesor que lo dicta |
 | id_materia | INT | NOT NULL, FK → materia (ON DELETE RESTRICT) | Materia que se dicta |

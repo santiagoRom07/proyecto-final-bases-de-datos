@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 9qh0kIgwx7mFXvhS54tALPLXRs8aclzZco3f1l4i6VI8cwR4zHllQ4pV9D1nmgJ
+\restrict Qlm6nXQSvSPs7OMhP2O7d3Bcr4J4epw0wSSO89r8NGUvjNcgY7gCccL2ftgdtpU
 
 -- Dumped from database version 16.15 (Homebrew)
 -- Dumped by pg_dump version 16.15 (Homebrew)
@@ -56,16 +56,16 @@ INSERT INTO public.estudiante (id_estudiante, nombre_estudiante, correo_estudian
 -- Data for Name: materia; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.materia (id_materia, nombre_materia, id_carrera) VALUES (1, 'Algebra Lineal', 1);
-INSERT INTO public.materia (id_materia, nombre_materia, id_carrera) VALUES (2, 'Calculo Diferencial', 1);
-INSERT INTO public.materia (id_materia, nombre_materia, id_carrera) VALUES (3, 'Ingenieria de Software', 1);
-INSERT INTO public.materia (id_materia, nombre_materia, id_carrera) VALUES (4, 'Bases de Datos', 1);
-INSERT INTO public.materia (id_materia, nombre_materia, id_carrera) VALUES (5, 'Estructuras de Datos y Algoritmos', 1);
-INSERT INTO public.materia (id_materia, nombre_materia, id_carrera) VALUES (6, 'Programacion Orientada a Objetos', 1);
-INSERT INTO public.materia (id_materia, nombre_materia, id_carrera) VALUES (7, 'Fundamentos de Programacion', 1);
-INSERT INTO public.materia (id_materia, nombre_materia, id_carrera) VALUES (8, 'Aprendizaje Profundo', 2);
-INSERT INTO public.materia (id_materia, nombre_materia, id_carrera) VALUES (9, 'Aprendizaje Automatico', 2);
-INSERT INTO public.materia (id_materia, nombre_materia, id_carrera) VALUES (10, 'Estadistica y Probabilidad', 2);
+INSERT INTO public.materia (id_materia, nombre_materia, id_carrera, creditos) VALUES (5, 'Estructuras de Datos y Algoritmos', 1, 4);
+INSERT INTO public.materia (id_materia, nombre_materia, id_carrera, creditos) VALUES (9, 'Aprendizaje Automatico', 2, 4);
+INSERT INTO public.materia (id_materia, nombre_materia, id_carrera, creditos) VALUES (1, 'Algebra Lineal', 1, 3);
+INSERT INTO public.materia (id_materia, nombre_materia, id_carrera, creditos) VALUES (7, 'Fundamentos de Programacion', 1, 3);
+INSERT INTO public.materia (id_materia, nombre_materia, id_carrera, creditos) VALUES (4, 'Bases de Datos', 1, 3);
+INSERT INTO public.materia (id_materia, nombre_materia, id_carrera, creditos) VALUES (10, 'Estadistica y Probabilidad', 2, 3);
+INSERT INTO public.materia (id_materia, nombre_materia, id_carrera, creditos) VALUES (2, 'Calculo Diferencial', 1, 4);
+INSERT INTO public.materia (id_materia, nombre_materia, id_carrera, creditos) VALUES (6, 'Programacion Orientada a Objetos', 1, 4);
+INSERT INTO public.materia (id_materia, nombre_materia, id_carrera, creditos) VALUES (3, 'Ingenieria de Software', 1, 3);
+INSERT INTO public.materia (id_materia, nombre_materia, id_carrera, creditos) VALUES (8, 'Aprendizaje Profundo', 2, 3);
 
 
 --
@@ -83,16 +83,16 @@ INSERT INTO public.profesor (id_profesor, nombre_profesor) VALUES (5, 'Andres Fe
 -- Data for Name: grupo; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.grupo (id_grupo, cupo, creditos, semestre, id_profesor, id_materia) VALUES (1, 25, 3, '2025-2', 3, 1);
-INSERT INTO public.grupo (id_grupo, cupo, creditos, semestre, id_profesor, id_materia) VALUES (2, 30, 4, '2025-1', 4, 2);
-INSERT INTO public.grupo (id_grupo, cupo, creditos, semestre, id_profesor, id_materia) VALUES (3, 3, 4, '2026-1', 3, 2);
-INSERT INTO public.grupo (id_grupo, cupo, creditos, semestre, id_profesor, id_materia) VALUES (4, 35, 3, '2026-1', 1, 4);
-INSERT INTO public.grupo (id_grupo, cupo, creditos, semestre, id_profesor, id_materia) VALUES (5, 25, 4, '2026-1', 2, 5);
-INSERT INTO public.grupo (id_grupo, cupo, creditos, semestre, id_profesor, id_materia) VALUES (6, 25, 4, '2025-2', 2, 6);
-INSERT INTO public.grupo (id_grupo, cupo, creditos, semestre, id_profesor, id_materia) VALUES (7, 30, 3, '2025-1', 1, 7);
-INSERT INTO public.grupo (id_grupo, cupo, creditos, semestre, id_profesor, id_materia) VALUES (8, 30, 3, '2026-1', 1, 7);
-INSERT INTO public.grupo (id_grupo, cupo, creditos, semestre, id_profesor, id_materia) VALUES (9, 20, 4, '2026-1', 5, 9);
-INSERT INTO public.grupo (id_grupo, cupo, creditos, semestre, id_profesor, id_materia) VALUES (10, 30, 3, '2025-2', 4, 10);
+INSERT INTO public.grupo (id_grupo, cupo, semestre, id_profesor, id_materia) VALUES (1, 25, '2025-2', 3, 1);
+INSERT INTO public.grupo (id_grupo, cupo, semestre, id_profesor, id_materia) VALUES (2, 30, '2025-1', 4, 2);
+INSERT INTO public.grupo (id_grupo, cupo, semestre, id_profesor, id_materia) VALUES (3, 3, '2026-1', 3, 2);
+INSERT INTO public.grupo (id_grupo, cupo, semestre, id_profesor, id_materia) VALUES (4, 35, '2026-1', 1, 4);
+INSERT INTO public.grupo (id_grupo, cupo, semestre, id_profesor, id_materia) VALUES (5, 25, '2026-1', 2, 5);
+INSERT INTO public.grupo (id_grupo, cupo, semestre, id_profesor, id_materia) VALUES (6, 25, '2025-2', 2, 6);
+INSERT INTO public.grupo (id_grupo, cupo, semestre, id_profesor, id_materia) VALUES (7, 30, '2025-1', 1, 7);
+INSERT INTO public.grupo (id_grupo, cupo, semestre, id_profesor, id_materia) VALUES (8, 30, '2026-1', 1, 7);
+INSERT INTO public.grupo (id_grupo, cupo, semestre, id_profesor, id_materia) VALUES (9, 20, '2026-1', 5, 9);
+INSERT INTO public.grupo (id_grupo, cupo, semestre, id_profesor, id_materia) VALUES (10, 30, '2025-2', 4, 10);
 
 
 --
@@ -163,7 +163,7 @@ SELECT pg_catalog.setval('public.auditoria_calificacion_id_auditoria_seq', 2, tr
 -- Name: carrera_id_carrera_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.carrera_id_carrera_seq', 6, true);
+SELECT pg_catalog.setval('public.carrera_id_carrera_seq', 7, true);
 
 
 --
@@ -191,7 +191,7 @@ SELECT pg_catalog.setval('public.materia_id_materia_seq', 12, true);
 -- Name: matricula_id_matricula_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.matricula_id_matricula_seq', 49, true);
+SELECT pg_catalog.setval('public.matricula_id_matricula_seq', 50, true);
 
 
 --
@@ -205,7 +205,7 @@ SELECT pg_catalog.setval('public.profesor_id_profesor_seq', 5, true);
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 9qh0kIgwx7mFXvhS54tALPLXRs8aclzZco3f1l4i6VI8cwR4zHllQ4pV9D1nmgJ
+\unrestrict Qlm6nXQSvSPs7OMhP2O7d3Bcr4J4epw0wSSO89r8NGUvjNcgY7gCccL2ftgdtpU
 
 
 ALTER TABLE public.matricula ENABLE TRIGGER USER;

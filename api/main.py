@@ -117,13 +117,14 @@ def borrar_carrera(id_carrera: int):
 class Materia(BaseModel):
     nombre_materia: str
     id_carrera: int
+    creditos: int
 
 
 @app.get("/materias")
 def listar_materias():
     with conexion.cursor() as cur:
         cur.execute(
-            """SELECT m.id_materia, m.nombre_materia, m.id_carrera, c.nombre_carrera
+            """SELECT m.id_materia, m.nombre_materia, m.id_carrera, m.creditos, c.nombre_carrera
                FROM materia m JOIN carrera c ON c.id_carrera = m.id_carrera
                ORDER BY m.id_materia"""
         )
@@ -133,7 +134,7 @@ def listar_materias():
 @app.get("/materias/{id_materia}")
 def obtener_materia(id_materia: int):
     with conexion.cursor() as cur:
-        cur.execute("SELECT id_materia, nombre_materia, id_carrera FROM materia WHERE id_materia = %s", (id_materia,))
+        cur.execute("SELECT id_materia, nombre_materia, id_carrera, creditos FROM materia WHERE id_materia = %s", (id_materia,))
         materia = cur.fetchone()
     if materia is None:
         raise HTTPException(status_code=404, detail="Esa materia no existe")
@@ -143,16 +144,16 @@ def obtener_materia(id_materia: int):
 @app.post("/materias", status_code=201)
 def crear_materia(datos: Materia):
     return escribir(
-        "INSERT INTO materia (nombre_materia, id_carrera) VALUES (%s, %s) RETURNING id_materia, nombre_materia, id_carrera",
-        (datos.nombre_materia, datos.id_carrera),
+        "INSERT INTO materia (nombre_materia, id_carrera, creditos) VALUES (%s, %s, %s) RETURNING id_materia, nombre_materia, id_carrera, creditos",
+        (datos.nombre_materia, datos.id_carrera, datos.creditos),
     )
 
 
 @app.put("/materias/{id_materia}")
 def editar_materia(id_materia: int, datos: Materia):
     materia = escribir(
-        "UPDATE materia SET nombre_materia = %s, id_carrera = %s WHERE id_materia = %s RETURNING id_materia, nombre_materia, id_carrera",
-        (datos.nombre_materia, datos.id_carrera, id_materia),
+        "UPDATE materia SET nombre_materia = %s, id_carrera = %s, creditos = %s WHERE id_materia = %s RETURNING id_materia, nombre_materia, id_carrera, creditos",
+        (datos.nombre_materia, datos.id_carrera, datos.creditos, id_materia),
     )
     if materia is None:
         raise HTTPException(status_code=404, detail="Esa materia no existe")
@@ -161,7 +162,7 @@ def editar_materia(id_materia: int, datos: Materia):
 
 @app.delete("/materias/{id_materia}")
 def borrar_materia(id_materia: int):
-    materia = escribir("DELETE FROM materia WHERE id_materia = %s RETURNING id_materia, nombre_materia, id_carrera", (id_materia,))
+    materia = escribir("DELETE FROM materia WHERE id_materia = %s RETURNING id_materia, nombre_materia, id_carrera, creditos", (id_materia,))
     if materia is None:
         raise HTTPException(status_code=404, detail="Esa materia no existe")
     return {"mensaje": "Materia borrada", "materia": materia}

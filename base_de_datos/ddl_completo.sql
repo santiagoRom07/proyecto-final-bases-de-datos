@@ -29,10 +29,13 @@ CREATE TABLE profesor (
 );
 
 -- ON DELETE RESTRICT: no se puede borrar una carrera que todavía tiene materias.
+-- creditos vive aquí y no en grupo: los créditos dependen de la materia
+-- (id_materia -> creditos); guardarlos en grupo era una dependencia transitiva (3NF).
 CREATE TABLE materia (
   id_materia     SERIAL       PRIMARY KEY,
   nombre_materia VARCHAR(100) NOT NULL,
-  id_carrera     INT          NOT NULL REFERENCES carrera(id_carrera) ON DELETE RESTRICT
+  id_carrera     INT          NOT NULL REFERENCES carrera(id_carrera) ON DELETE RESTRICT,
+  creditos       INT          NOT NULL CONSTRAINT creditos_positivos CHECK (creditos > 0)
 );
 
 -- ON DELETE CASCADE: si se elimina una materia, sus relaciones de
@@ -49,7 +52,6 @@ CREATE TABLE materia_prerrequisito (
 CREATE TABLE grupo (
   id_grupo    SERIAL      PRIMARY KEY,
   cupo        INT         NOT NULL CONSTRAINT cupo_positivo CHECK (cupo > 0),
-  creditos    INT         NOT NULL CONSTRAINT creditos_positivos CHECK (creditos > 0),
   semestre    VARCHAR(20) NOT NULL,
   id_profesor INT         NOT NULL REFERENCES profesor(id_profesor) ON DELETE RESTRICT,
   id_materia  INT         NOT NULL REFERENCES materia(id_materia) ON DELETE RESTRICT
@@ -92,10 +94,11 @@ BEGIN
     FROM matricula
    WHERE id_estudiante = p_id_estudiante;
 
-  SELECT COALESCE(SUM(g.creditos), 0)
+  SELECT COALESCE(SUM(m.creditos), 0)
     INTO creditos_aprobados
     FROM matricula mt
-    JOIN grupo g ON g.id_grupo = mt.id_grupo
+    JOIN grupo g   ON g.id_grupo   = mt.id_grupo
+    JOIN materia m ON m.id_materia = g.id_materia
    WHERE mt.id_estudiante = p_id_estudiante
      AND mt.calificacion >= 3.0;
 END;
@@ -337,9 +340,10 @@ SELECT RANK() OVER (ORDER BY ROUND(AVG(mt.calificacion), 2) DESC) AS puesto,
        e.nombre_estudiante,
        COUNT(mt.calificacion)                                   AS materias_calificadas,
        ROUND(AVG(mt.calificacion), 2)                           AS promedio,
-       COALESCE(SUM(g.creditos) FILTER (WHERE mt.calificacion >= 3.0), 0) AS creditos_aprobados
+       COALESCE(SUM(m.creditos) FILTER (WHERE mt.calificacion >= 3.0), 0) AS creditos_aprobados
 FROM estudiante e
 JOIN matricula mt ON mt.id_estudiante = e.id_estudiante
 JOIN grupo g      ON g.id_grupo       = mt.id_grupo
+JOIN materia m    ON m.id_materia     = g.id_materia
 WHERE mt.calificacion IS NOT NULL
 GROUP BY e.id_estudiante, e.nombre_estudiante;
