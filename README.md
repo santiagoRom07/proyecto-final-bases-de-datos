@@ -98,6 +98,7 @@ Cambios posteriores (Entregas 3, 4 y final):
 
 5. **Reglas `ON DELETE` explícitas.** `RESTRICT` en materia, grupo y matrícula (no se borra lo que tiene historia académica); `CASCADE` en `materia_prerrequisito` (si se borra una materia, sus prerrequisitos ya no tienen sentido).
 6. **Se quitó el índice redundante `idx_matricula_estudiante`.** El `UNIQUE (id_estudiante, id_grupo)` ya crea un índice que empieza por `id_estudiante`, así que el otro sobraba.
-7. **Nueva tabla `auditoria_calificacion`**, llenada por un trigger, para registrar cada cambio de nota.
-8. **Lógica en la base:** 4 funciones, 1 procedimiento, 3 triggers y la vista `ranking_estudiantes` (detalle en `base_de_datos/diccionario_datos.md`).
-9. **Datos ampliados:** 10 estudiantes, 10 materias, 3 semestres y 36 matrículas coherentes con los prerrequisitos.
+7. **Nuevo índice `idx_matricula_grupo` en `matricula(id_grupo)`.** Postgres no indexa las llaves foráneas. Esta columna se busca en cada matrícula (el trigger de cupo cuenta los inscritos del grupo) y en la consulta de ocupación de grupos; sin índice, las dos recorren toda la tabla `matricula`, que es la que más crece.
+8. **Nueva tabla `auditoria_calificacion`**, llenada por un trigger, para registrar cada cambio de nota.
+9. **Lógica en la base:** 4 funciones, 1 procedimiento, 3 triggers y la vista `ranking_estudiantes` (detalle en `base_de_datos/diccionario_datos.md`).
+10. **Datos ampliados:** 10 estudiantes, 10 materias, 3 semestres y 36 matrículas coherentes con los prerrequisitos.

@@ -68,6 +68,12 @@ CREATE TABLE matricula (
 -- Nota: no se crea idx_matricula_estudiante porque el índice de
 -- UNIQUE (id_estudiante, id_grupo) ya cubre las búsquedas por id_estudiante.
 
+-- Índice en la FK matricula.id_grupo: Postgres no indexa las FK solo.
+-- Por qué importa: el trigger de cupo cuenta las matrículas de un grupo en
+-- cada inscripción, y la consulta de ocupación agrupa por grupo; sin índice,
+-- ambas recorren toda la tabla matricula, que es la que más crece.
+CREATE INDEX idx_matricula_grupo ON matricula(id_grupo);
+
 -- ---------- FUNCIONES, PROCEDIMIENTO, TRIGGERS Y VISTA ----------
 -- F1. Promedio, materias calificadas y créditos aprobados de un estudiante (parámetros IN/OUT)
 CREATE OR REPLACE FUNCTION calcular_promedio_estudiante(

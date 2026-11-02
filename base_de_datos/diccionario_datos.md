@@ -64,6 +64,8 @@ Inscripción de un estudiante en un grupo y su nota.
 
 UNIQUE: `(id_estudiante, id_grupo)` (no se matricula dos veces en el mismo grupo).
 
+Índice: `idx_matricula_grupo` sobre `id_grupo` (lo usan el trigger de cupo y la consulta de ocupación de grupos).
+
 ## auditoria_calificacion
 Historial de cambios de nota. La llena el trigger `auditar_cambio_calificacion`; nadie escribe aquí a mano.
 
