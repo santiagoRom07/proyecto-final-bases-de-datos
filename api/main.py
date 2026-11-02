@@ -10,6 +10,7 @@ from typing import Optional
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.routing import APIRoute
 from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()  # lee el .env (la contraseña nunca va escrita aquí)
@@ -321,3 +322,11 @@ def ver_auditoria():
     with conexion.cursor() as cur:
         cur.execute("SELECT id_auditoria, id_matricula, nota_anterior, nota_nueva, usuario, fecha FROM auditoria_calificacion ORDER BY id_auditoria DESC")
         return cur.fetchall()
+
+
+# ---------- Orden de /docs: agrupa los endpoints por tipo de acción ----------
+GRUPOS = {"GET": "GET: leer", "POST": "POST: crear", "PUT": "PUT: editar", "DELETE": "DELETE: borrar"}
+app.openapi_tags = [{"name": g} for g in GRUPOS.values()]
+for ruta in app.routes:
+    if isinstance(ruta, APIRoute):
+        ruta.tags = [GRUPOS[next(iter(ruta.methods))]]
