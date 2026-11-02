@@ -57,6 +57,12 @@ def escribir(sql, params):
     except errors.RaiseException as e:  # mensajes de los triggers (RAISE EXCEPTION)
         conexion.rollback()
         raise HTTPException(status_code=409, detail=e.diag.message_primary)
+    except errors.DataError:  # texto muy largo o número que no cabe en la columna
+        conexion.rollback()
+        raise HTTPException(status_code=422, detail="Un valor es demasiado largo o grande")
+    except psycopg2.Error:  # cualquier otro error: deshacer igual, o la API quedaría colgada
+        conexion.rollback()
+        raise
 
 
 # ---------- CARRERA ----------
@@ -66,14 +72,14 @@ class Carrera(BaseModel):
 @app.get("/carreras")
 def listar_carreras():
     with conexion.cursor() as cur:
-        cur.execute("SELECT * FROM carrera ORDER BY id_carrera")
+        cur.execute("SELECT id_carrera, nombre_carrera FROM carrera ORDER BY id_carrera")
         return cur.fetchall()
 
 
 @app.get("/carreras/{id_carrera}")
 def obtener_carrera(id_carrera: int):
     with conexion.cursor() as cur:
-        cur.execute("SELECT * FROM carrera WHERE id_carrera = %s", (id_carrera,))
+        cur.execute("SELECT id_carrera, nombre_carrera FROM carrera WHERE id_carrera = %s", (id_carrera,))
         carrera = cur.fetchone()
     if carrera is None:
         raise HTTPException(status_code=404, detail="Esa carrera no existe")
@@ -83,7 +89,7 @@ def obtener_carrera(id_carrera: int):
 @app.post("/carreras", status_code=201)
 def crear_carrera(datos: Carrera):
     return escribir(
-        "INSERT INTO carrera (nombre_carrera) VALUES (%s) RETURNING *",
+        "INSERT INTO carrera (nombre_carrera) VALUES (%s) RETURNING id_carrera, nombre_carrera",
         (datos.nombre_carrera,),
     )
 
@@ -91,7 +97,7 @@ def crear_carrera(datos: Carrera):
 @app.put("/carreras/{id_carrera}")
 def editar_carrera(id_carrera: int, datos: Carrera):
     carrera = escribir(
-        "UPDATE carrera SET nombre_carrera = %s WHERE id_carrera = %s RETURNING *",
+        "UPDATE carrera SET nombre_carrera = %s WHERE id_carrera = %s RETURNING id_carrera, nombre_carrera",
         (datos.nombre_carrera, id_carrera),
     )
     if carrera is None:
@@ -101,7 +107,7 @@ def editar_carrera(id_carrera: int, datos: Carrera):
 
 @app.delete("/carreras/{id_carrera}")
 def borrar_carrera(id_carrera: int):
-    carrera = escribir("DELETE FROM carrera WHERE id_carrera = %s RETURNING *", (id_carrera,))
+    carrera = escribir("DELETE FROM carrera WHERE id_carrera = %s RETURNING id_carrera, nombre_carrera", (id_carrera,))
     if carrera is None:
         raise HTTPException(status_code=404, detail="Esa carrera no existe")
     return {"mensaje": "Carrera borrada", "carrera": carrera}
@@ -127,7 +133,7 @@ def listar_materias():
 @app.get("/materias/{id_materia}")
 def obtener_materia(id_materia: int):
     with conexion.cursor() as cur:
-        cur.execute("SELECT * FROM materia WHERE id_materia = %s", (id_materia,))
+        cur.execute("SELECT id_materia, nombre_materia, id_carrera FROM materia WHERE id_materia = %s", (id_materia,))
         materia = cur.fetchone()
     if materia is None:
         raise HTTPException(status_code=404, detail="Esa materia no existe")
@@ -137,7 +143,7 @@ def obtener_materia(id_materia: int):
 @app.post("/materias", status_code=201)
 def crear_materia(datos: Materia):
     return escribir(
-        "INSERT INTO materia (nombre_materia, id_carrera) VALUES (%s, %s) RETURNING *",
+        "INSERT INTO materia (nombre_materia, id_carrera) VALUES (%s, %s) RETURNING id_materia, nombre_materia, id_carrera",
         (datos.nombre_materia, datos.id_carrera),
     )
 
@@ -145,7 +151,7 @@ def crear_materia(datos: Materia):
 @app.put("/materias/{id_materia}")
 def editar_materia(id_materia: int, datos: Materia):
     materia = escribir(
-        "UPDATE materia SET nombre_materia = %s, id_carrera = %s WHERE id_materia = %s RETURNING *",
+        "UPDATE materia SET nombre_materia = %s, id_carrera = %s WHERE id_materia = %s RETURNING id_materia, nombre_materia, id_carrera",
         (datos.nombre_materia, datos.id_carrera, id_materia),
     )
     if materia is None:
@@ -155,7 +161,7 @@ def editar_materia(id_materia: int, datos: Materia):
 
 @app.delete("/materias/{id_materia}")
 def borrar_materia(id_materia: int):
-    materia = escribir("DELETE FROM materia WHERE id_materia = %s RETURNING *", (id_materia,))
+    materia = escribir("DELETE FROM materia WHERE id_materia = %s RETURNING id_materia, nombre_materia, id_carrera", (id_materia,))
     if materia is None:
         raise HTTPException(status_code=404, detail="Esa materia no existe")
     return {"mensaje": "Materia borrada", "materia": materia}
@@ -170,14 +176,14 @@ class Estudiante(BaseModel):
 @app.get("/estudiantes")
 def listar_estudiantes():
     with conexion.cursor() as cur:
-        cur.execute("SELECT * FROM estudiante ORDER BY id_estudiante")
+        cur.execute("SELECT id_estudiante, nombre_estudiante, correo_estudiante FROM estudiante ORDER BY id_estudiante")
         return cur.fetchall()
 
 
 @app.get("/estudiantes/{id_estudiante}")
 def obtener_estudiante(id_estudiante: int):
     with conexion.cursor() as cur:
-        cur.execute("SELECT * FROM estudiante WHERE id_estudiante = %s", (id_estudiante,))
+        cur.execute("SELECT id_estudiante, nombre_estudiante, correo_estudiante FROM estudiante WHERE id_estudiante = %s", (id_estudiante,))
         estudiante = cur.fetchone()
     if estudiante is None:
         raise HTTPException(status_code=404, detail="Ese estudiante no existe")
@@ -187,7 +193,7 @@ def obtener_estudiante(id_estudiante: int):
 @app.post("/estudiantes", status_code=201)
 def crear_estudiante(datos: Estudiante):
     return escribir(
-        "INSERT INTO estudiante (nombre_estudiante, correo_estudiante) VALUES (%s, %s) RETURNING *",
+        "INSERT INTO estudiante (nombre_estudiante, correo_estudiante) VALUES (%s, %s) RETURNING id_estudiante, nombre_estudiante, correo_estudiante",
         (datos.nombre_estudiante, datos.correo_estudiante),
     )
 
@@ -195,7 +201,7 @@ def crear_estudiante(datos: Estudiante):
 @app.put("/estudiantes/{id_estudiante}")
 def editar_estudiante(id_estudiante: int, datos: Estudiante):
     estudiante = escribir(
-        "UPDATE estudiante SET nombre_estudiante = %s, correo_estudiante = %s WHERE id_estudiante = %s RETURNING *",
+        "UPDATE estudiante SET nombre_estudiante = %s, correo_estudiante = %s WHERE id_estudiante = %s RETURNING id_estudiante, nombre_estudiante, correo_estudiante",
         (datos.nombre_estudiante, datos.correo_estudiante, id_estudiante),
     )
     if estudiante is None:
@@ -205,7 +211,7 @@ def editar_estudiante(id_estudiante: int, datos: Estudiante):
 
 @app.delete("/estudiantes/{id_estudiante}")
 def borrar_estudiante(id_estudiante: int):
-    estudiante = escribir("DELETE FROM estudiante WHERE id_estudiante = %s RETURNING *", (id_estudiante,))
+    estudiante = escribir("DELETE FROM estudiante WHERE id_estudiante = %s RETURNING id_estudiante, nombre_estudiante, correo_estudiante", (id_estudiante,))
     if estudiante is None:
         raise HTTPException(status_code=404, detail="Ese estudiante no existe")
     return {"mensaje": "Estudiante borrado", "estudiante": estudiante}
@@ -283,7 +289,7 @@ def matricular(datos: Matricula):
     # Los triggers T1 (cupo) y T2 (prerrequisitos) revisan antes de guardar;
     # si dicen que no, escribir() devuelve su mensaje como 409.
     return escribir(
-        "INSERT INTO matricula (id_estudiante, id_grupo) VALUES (%s, %s) RETURNING *",
+        "INSERT INTO matricula (id_estudiante, id_grupo) VALUES (%s, %s) RETURNING id_matricula, calificacion, id_estudiante, id_grupo",
         (datos.id_estudiante, datos.id_grupo),
     )
 
@@ -292,7 +298,7 @@ def matricular(datos: Matricula):
 def calificar(id_matricula: int, datos: Calificacion):
     # El trigger T3 guarda la nota vieja y la nueva en auditoria_calificacion.
     matricula = escribir(
-        "UPDATE matricula SET calificacion = %s WHERE id_matricula = %s RETURNING *",
+        "UPDATE matricula SET calificacion = %s WHERE id_matricula = %s RETURNING id_matricula, calificacion, id_estudiante, id_grupo",
         (datos.calificacion, id_matricula),
     )
     if matricula is None:
@@ -302,7 +308,7 @@ def calificar(id_matricula: int, datos: Calificacion):
 
 @app.delete("/matriculas/{id_matricula}")
 def borrar_matricula(id_matricula: int):
-    matricula = escribir("DELETE FROM matricula WHERE id_matricula = %s RETURNING *", (id_matricula,))
+    matricula = escribir("DELETE FROM matricula WHERE id_matricula = %s RETURNING id_matricula, calificacion, id_estudiante, id_grupo", (id_matricula,))
     if matricula is None:
         raise HTTPException(status_code=404, detail="Esa matrícula no existe")
     return {"mensaje": "Matrícula borrada", "matricula": matricula}
@@ -312,5 +318,5 @@ def borrar_matricula(id_matricula: int):
 def ver_auditoria():
     """Historial de cambios de notas que llena el trigger T3."""
     with conexion.cursor() as cur:
-        cur.execute("SELECT * FROM auditoria_calificacion ORDER BY id_auditoria DESC")
+        cur.execute("SELECT id_auditoria, id_matricula, nota_anterior, nota_nueva, usuario, fecha FROM auditoria_calificacion ORDER BY id_auditoria DESC")
         return cur.fetchall()

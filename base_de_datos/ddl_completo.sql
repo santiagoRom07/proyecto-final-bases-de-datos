@@ -1,30 +1,81 @@
---
--- PostgreSQL database dump
---
+-- ============================================================
+-- Proyecto Final — Caso Universidad: DDL completo
+-- Integrantes: Santiago Romero Viloria, Juan Pablo Quintero Carrillo,
+--              Yamid Rafael Amaya Diaz
+-- ============================================================
+-- Qué hace: crea las 8 tablas con sus restricciones, las funciones,
+--           el procedimiento, los triggers y la vista del caso.
+-- Requisito: base "universidad" recién creada y vacía.
+-- Cómo correrlo:
+--   psql -d universidad -f ddl_completo.sql
+--   y después: psql -d universidad -f datos.sql
+-- ============================================================
 
-\restrict Hx1nWLtdFbfgJMhq7bWaaN4WArHBdEpFS7odEBtXnzASTFkcUmtldsaJa3so2g5
+-- ---------- TABLAS ----------
+CREATE TABLE carrera (
+  id_carrera     SERIAL       PRIMARY KEY,
+  nombre_carrera VARCHAR(100) NOT NULL UNIQUE
+);
 
--- Dumped from database version 16.15 (Homebrew)
--- Dumped by pg_dump version 16.15 (Homebrew)
+CREATE TABLE estudiante (
+  id_estudiante     SERIAL       PRIMARY KEY,
+  nombre_estudiante VARCHAR(100) NOT NULL,
+  correo_estudiante VARCHAR(150) NOT NULL UNIQUE
+);
 
-SET statement_timeout = 0;
-SET lock_timeout = 0;
-SET idle_in_transaction_session_timeout = 0;
-SET client_encoding = 'UTF8';
-SET standard_conforming_strings = on;
-SELECT pg_catalog.set_config('search_path', '', false);
-SET check_function_bodies = false;
-SET xmloption = content;
-SET client_min_messages = warning;
-SET row_security = off;
+CREATE TABLE profesor (
+  id_profesor     SERIAL       PRIMARY KEY,
+  nombre_profesor VARCHAR(100) NOT NULL
+);
 
---
--- Name: calcular_promedio_estudiante(integer); Type: FUNCTION; Schema: public; Owner: -
---
+-- ON DELETE RESTRICT: no se puede borrar una carrera que todavía tiene materias.
+CREATE TABLE materia (
+  id_materia     SERIAL       PRIMARY KEY,
+  nombre_materia VARCHAR(100) NOT NULL,
+  id_carrera     INT          NOT NULL REFERENCES carrera(id_carrera) ON DELETE RESTRICT
+);
 
-CREATE FUNCTION public.calcular_promedio_estudiante(p_id_estudiante integer, OUT promedio numeric, OUT materias_calificadas integer, OUT creditos_aprobados integer) RETURNS record
-    LANGUAGE plpgsql
-    AS $$
+-- ON DELETE CASCADE: si se elimina una materia, sus relaciones de
+-- prerrequisito dejan de tener sentido y se eliminan con ella.
+CREATE TABLE materia_prerrequisito (
+  id_materia       INT NOT NULL REFERENCES materia(id_materia) ON DELETE CASCADE,
+  id_prerrequisito INT NOT NULL REFERENCES materia(id_materia) ON DELETE CASCADE,
+  PRIMARY KEY (id_materia, id_prerrequisito),
+  CONSTRAINT materia_no_es_su_propio_prerrequisito CHECK (id_materia <> id_prerrequisito)
+);
+
+-- ON DELETE RESTRICT: no se puede borrar un profesor o una materia
+-- que tiene grupos abiertos (se perdería la historia académica).
+CREATE TABLE grupo (
+  id_grupo    SERIAL      PRIMARY KEY,
+  cupo        INT         NOT NULL CONSTRAINT cupo_positivo CHECK (cupo > 0),
+  creditos    INT         NOT NULL CONSTRAINT creditos_positivos CHECK (creditos > 0),
+  semestre    VARCHAR(20) NOT NULL,
+  id_profesor INT         NOT NULL REFERENCES profesor(id_profesor) ON DELETE RESTRICT,
+  id_materia  INT         NOT NULL REFERENCES materia(id_materia) ON DELETE RESTRICT
+);
+
+-- ON DELETE RESTRICT: las notas son historia académica; no se borran
+-- en cascada al eliminar un estudiante o un grupo.
+CREATE TABLE matricula (
+  id_matricula  SERIAL       PRIMARY KEY,
+  calificacion  DECIMAL(3,1) CONSTRAINT calificacion_entre_0_y_5 CHECK (calificacion >= 0 AND calificacion <= 5),
+  id_estudiante INT          NOT NULL REFERENCES estudiante(id_estudiante) ON DELETE RESTRICT,
+  id_grupo      INT          NOT NULL REFERENCES grupo(id_grupo) ON DELETE RESTRICT,
+  UNIQUE (id_estudiante, id_grupo)
+);
+
+-- Nota: no se crea idx_matricula_estudiante porque el índice de
+-- UNIQUE (id_estudiante, id_grupo) ya cubre las búsquedas por id_estudiante.
+
+-- ---------- FUNCIONES, PROCEDIMIENTO, TRIGGERS Y VISTA ----------
+-- F1. Promedio, materias calificadas y créditos aprobados de un estudiante (parámetros IN/OUT)
+CREATE OR REPLACE FUNCTION calcular_promedio_estudiante(
+  IN  p_id_estudiante      INT,
+  OUT promedio             DECIMAL(3,2),
+  OUT materias_calificadas INT,
+  OUT creditos_aprobados   INT
+) AS $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM estudiante WHERE id_estudiante = p_id_estudiante) THEN
     RAISE EXCEPTION 'El estudiante no existe (recibido: %)', p_id_estudiante;
@@ -42,16 +93,28 @@ BEGIN
    WHERE mt.id_estudiante = p_id_estudiante
      AND mt.calificacion >= 3.0;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
+-- F2. Cupos disponibles en un grupo
+CREATE OR REPLACE FUNCTION contar_cupos_disponibles(p_id_grupo INT)
+RETURNS INT AS $$
+DECLARE
+  v_cupo      INT;
+  v_inscritos INT;
+BEGIN
+  SELECT cupo INTO v_cupo FROM grupo WHERE id_grupo = p_id_grupo;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'El grupo no existe (recibido: %)', p_id_grupo;
+  END IF;
 
---
--- Name: clasificar_estado_academico(integer); Type: FUNCTION; Schema: public; Owner: -
---
+  SELECT COUNT(*) INTO v_inscritos FROM matricula WHERE id_grupo = p_id_grupo;
+  RETURN v_cupo - v_inscritos;
+END;
+$$ LANGUAGE plpgsql;
 
-CREATE FUNCTION public.clasificar_estado_academico(p_id_estudiante integer) RETURNS text
-    LANGUAGE plpgsql
-    AS $$
+-- F3. Estado académico de un estudiante (ciclo FOR + IF/ELSIF)
+CREATE OR REPLACE FUNCTION clasificar_estado_academico(p_id_estudiante INT)
+RETURNS TEXT AS $$
 DECLARE
   r           RECORD;
   v_aprobadas INT := 0;
@@ -94,38 +157,11 @@ BEGIN
   RETURN format('%s | promedio %s | aprobadas %s | perdidas %s | en curso %s',
                 v_estado, v_promedio, v_aprobadas, v_perdidas, v_en_curso);
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
-
---
--- Name: contar_cupos_disponibles(integer); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.contar_cupos_disponibles(p_id_grupo integer) RETURNS integer
-    LANGUAGE plpgsql
-    AS $$
-DECLARE
-  v_cupo      INT;
-  v_inscritos INT;
-BEGIN
-  SELECT cupo INTO v_cupo FROM grupo WHERE id_grupo = p_id_grupo;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'El grupo no existe (recibido: %)', p_id_grupo;
-  END IF;
-
-  SELECT COUNT(*) INTO v_inscritos FROM matricula WHERE id_grupo = p_id_grupo;
-  RETURN v_cupo - v_inscritos;
-END;
-$$;
-
-
---
--- Name: listar_materias_habilitadas(integer); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.listar_materias_habilitadas(p_id_estudiante integer) RETURNS TABLE(materia_habilitada character varying, carrera character varying)
-    LANGUAGE plpgsql
-    AS $$
+-- F4. Materias que un estudiante puede matricular (tiene todos los prerrequisitos aprobados)
+CREATE OR REPLACE FUNCTION listar_materias_habilitadas(p_id_estudiante INT)
+RETURNS TABLE (materia_habilitada VARCHAR, carrera VARCHAR) AS $$
 DECLARE
   r RECORD;
 BEGIN
@@ -162,16 +198,14 @@ BEGIN
     END IF;
   END LOOP;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
-
---
--- Name: matricular_estudiante(character varying, character varying, character varying); Type: PROCEDURE; Schema: public; Owner: -
---
-
-CREATE PROCEDURE public.matricular_estudiante(IN p_correo character varying, IN p_materia character varying, IN p_semestre character varying)
-    LANGUAGE plpgsql
-    AS $$
+-- F5. Procedimiento para matricular a un estudiante por correo, materia y semestre
+CREATE OR REPLACE PROCEDURE matricular_estudiante(
+  p_correo   VARCHAR,
+  p_materia  VARCHAR,
+  p_semestre VARCHAR
+) AS $$
 DECLARE
   v_id_estudiante INT;
   v_id_grupo      INT;
@@ -199,47 +233,30 @@ EXCEPTION
     RAISE EXCEPTION 'El estudiante % ya esta matriculado en % (%)',
                     p_correo, p_materia, p_semestre;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
-
---
--- Name: registrar_cambio_calificacion(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.registrar_cambio_calificacion() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-  INSERT INTO auditoria_calificacion (id_matricula, nota_anterior, nota_nueva)
-  VALUES (NEW.id_matricula, OLD.calificacion, NEW.calificacion);
-  RETURN NULL;
-END;
-$$;
-
-
---
--- Name: verificar_cupo_disponible(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.verificar_cupo_disponible() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
+-- T1. Qué hace: antes de insertar una matrícula, verifica que el grupo tenga cupo.
+--     Por qué importa: sin esto, un grupo podría quedar con más estudiantes que su cupo.
+CREATE OR REPLACE FUNCTION verificar_cupo_disponible()
+RETURNS TRIGGER AS $$
 BEGIN
   IF contar_cupos_disponibles(NEW.id_grupo) <= 0 THEN
     RAISE EXCEPTION 'El grupo ya no tiene cupos disponibles (grupo: %)', NEW.id_grupo;
   END IF;
   RETURN NEW;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
+CREATE TRIGGER validar_cupo_matricula
+BEFORE INSERT ON matricula
+FOR EACH ROW
+EXECUTE FUNCTION verificar_cupo_disponible();
 
---
--- Name: verificar_prerrequisitos_aprobados(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.verificar_prerrequisitos_aprobados() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
+-- T2. Qué hace: antes de insertar una matrícula, verifica que el estudiante haya aprobado
+--     (nota >= 3.0, en un semestre anterior) todos los prerrequisitos de la materia.
+--     Por qué importa: sin esto, un estudiante podría ver una materia sin las bases necesarias.
+CREATE OR REPLACE FUNCTION verificar_prerrequisitos_aprobados()
+RETURNS TRIGGER AS $$
 DECLARE
   v_id_materia INT;
   v_semestre   VARCHAR;
@@ -274,483 +291,49 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
+CREATE TRIGGER validar_prerrequisitos_matricula
+BEFORE INSERT ON matricula
+FOR EACH ROW
+EXECUTE FUNCTION verificar_prerrequisitos_aprobados();
 
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
-
---
--- Name: auditoria_calificacion; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.auditoria_calificacion (
-    id_auditoria integer NOT NULL,
-    id_matricula integer NOT NULL,
-    nota_anterior numeric(3,1),
-    nota_nueva numeric(3,1),
-    usuario text DEFAULT CURRENT_USER NOT NULL,
-    fecha timestamp without time zone DEFAULT now() NOT NULL
+-- T3. Qué hace: después de cambiar una calificación, guarda la nota anterior, la nueva,
+--     el usuario y la fecha en auditoria_calificacion.
+--     Por qué importa: sin esto, no habría forma de saber quién cambió una nota ni cuándo.
+CREATE TABLE auditoria_calificacion (
+  id_auditoria  SERIAL       PRIMARY KEY,
+  id_matricula  INT          NOT NULL,
+  nota_anterior DECIMAL(3,1),
+  nota_nueva    DECIMAL(3,1),
+  usuario       TEXT         NOT NULL DEFAULT current_user,
+  fecha         TIMESTAMP    NOT NULL DEFAULT now()
 );
 
-
---
--- Name: auditoria_calificacion_id_auditoria_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.auditoria_calificacion_id_auditoria_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: auditoria_calificacion_id_auditoria_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.auditoria_calificacion_id_auditoria_seq OWNED BY public.auditoria_calificacion.id_auditoria;
-
-
---
--- Name: carrera; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.carrera (
-    id_carrera integer NOT NULL,
-    nombre_carrera character varying(100) NOT NULL
-);
-
-
---
--- Name: carrera_id_carrera_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.carrera_id_carrera_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: carrera_id_carrera_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.carrera_id_carrera_seq OWNED BY public.carrera.id_carrera;
-
-
---
--- Name: estudiante; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.estudiante (
-    id_estudiante integer NOT NULL,
-    nombre_estudiante character varying(100) NOT NULL,
-    correo_estudiante character varying(150) NOT NULL
-);
-
-
---
--- Name: estudiante_id_estudiante_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.estudiante_id_estudiante_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: estudiante_id_estudiante_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.estudiante_id_estudiante_seq OWNED BY public.estudiante.id_estudiante;
-
-
---
--- Name: grupo; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.grupo (
-    id_grupo integer NOT NULL,
-    cupo integer NOT NULL,
-    creditos integer NOT NULL,
-    semestre character varying(20) NOT NULL,
-    id_profesor integer NOT NULL,
-    id_materia integer NOT NULL,
-    CONSTRAINT creditos_positivos CHECK ((creditos > 0)),
-    CONSTRAINT cupo_positivo CHECK ((cupo > 0))
-);
-
-
---
--- Name: grupo_id_grupo_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.grupo_id_grupo_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: grupo_id_grupo_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.grupo_id_grupo_seq OWNED BY public.grupo.id_grupo;
-
-
---
--- Name: materia; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.materia (
-    id_materia integer NOT NULL,
-    nombre_materia character varying(100) NOT NULL,
-    id_carrera integer NOT NULL
-);
-
-
---
--- Name: materia_id_materia_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.materia_id_materia_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: materia_id_materia_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.materia_id_materia_seq OWNED BY public.materia.id_materia;
-
-
---
--- Name: materia_prerrequisito; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.materia_prerrequisito (
-    id_materia integer NOT NULL,
-    id_prerrequisito integer NOT NULL,
-    CONSTRAINT materia_no_es_su_propio_prerrequisito CHECK ((id_materia <> id_prerrequisito))
-);
-
-
---
--- Name: matricula; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.matricula (
-    id_matricula integer NOT NULL,
-    calificacion numeric(3,1),
-    id_estudiante integer NOT NULL,
-    id_grupo integer NOT NULL,
-    CONSTRAINT calificacion_entre_0_y_5 CHECK (((calificacion >= (0)::numeric) AND (calificacion <= (5)::numeric)))
-);
-
-
---
--- Name: matricula_id_matricula_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.matricula_id_matricula_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: matricula_id_matricula_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.matricula_id_matricula_seq OWNED BY public.matricula.id_matricula;
-
-
---
--- Name: profesor; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.profesor (
-    id_profesor integer NOT NULL,
-    nombre_profesor character varying(100) NOT NULL
-);
-
-
---
--- Name: profesor_id_profesor_seq; Type: SEQUENCE; Schema: public; Owner: -
---
-
-CREATE SEQUENCE public.profesor_id_profesor_seq
-    AS integer
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: profesor_id_profesor_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: -
---
-
-ALTER SEQUENCE public.profesor_id_profesor_seq OWNED BY public.profesor.id_profesor;
-
-
---
--- Name: ranking_estudiantes; Type: VIEW; Schema: public; Owner: -
---
-
-CREATE VIEW public.ranking_estudiantes AS
- SELECT rank() OVER (ORDER BY (round(avg(mt.calificacion), 2)) DESC) AS puesto,
-    e.nombre_estudiante,
-    count(mt.calificacion) AS materias_calificadas,
-    round(avg(mt.calificacion), 2) AS promedio,
-    COALESCE(sum(g.creditos) FILTER (WHERE (mt.calificacion >= 3.0)), (0)::bigint) AS creditos_aprobados
-   FROM ((public.estudiante e
-     JOIN public.matricula mt ON ((mt.id_estudiante = e.id_estudiante)))
-     JOIN public.grupo g ON ((g.id_grupo = mt.id_grupo)))
-  WHERE (mt.calificacion IS NOT NULL)
-  GROUP BY e.id_estudiante, e.nombre_estudiante;
-
-
---
--- Name: auditoria_calificacion id_auditoria; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auditoria_calificacion ALTER COLUMN id_auditoria SET DEFAULT nextval('public.auditoria_calificacion_id_auditoria_seq'::regclass);
-
-
---
--- Name: carrera id_carrera; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.carrera ALTER COLUMN id_carrera SET DEFAULT nextval('public.carrera_id_carrera_seq'::regclass);
-
-
---
--- Name: estudiante id_estudiante; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.estudiante ALTER COLUMN id_estudiante SET DEFAULT nextval('public.estudiante_id_estudiante_seq'::regclass);
-
-
---
--- Name: grupo id_grupo; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.grupo ALTER COLUMN id_grupo SET DEFAULT nextval('public.grupo_id_grupo_seq'::regclass);
-
-
---
--- Name: materia id_materia; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.materia ALTER COLUMN id_materia SET DEFAULT nextval('public.materia_id_materia_seq'::regclass);
-
-
---
--- Name: matricula id_matricula; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.matricula ALTER COLUMN id_matricula SET DEFAULT nextval('public.matricula_id_matricula_seq'::regclass);
-
-
---
--- Name: profesor id_profesor; Type: DEFAULT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.profesor ALTER COLUMN id_profesor SET DEFAULT nextval('public.profesor_id_profesor_seq'::regclass);
-
-
---
--- Name: auditoria_calificacion auditoria_calificacion_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.auditoria_calificacion
-    ADD CONSTRAINT auditoria_calificacion_pkey PRIMARY KEY (id_auditoria);
-
-
---
--- Name: carrera carrera_nombre_carrera_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.carrera
-    ADD CONSTRAINT carrera_nombre_carrera_key UNIQUE (nombre_carrera);
-
-
---
--- Name: carrera carrera_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.carrera
-    ADD CONSTRAINT carrera_pkey PRIMARY KEY (id_carrera);
-
-
---
--- Name: estudiante estudiante_correo_estudiante_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.estudiante
-    ADD CONSTRAINT estudiante_correo_estudiante_key UNIQUE (correo_estudiante);
-
-
---
--- Name: estudiante estudiante_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.estudiante
-    ADD CONSTRAINT estudiante_pkey PRIMARY KEY (id_estudiante);
-
-
---
--- Name: grupo grupo_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.grupo
-    ADD CONSTRAINT grupo_pkey PRIMARY KEY (id_grupo);
-
-
---
--- Name: materia materia_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.materia
-    ADD CONSTRAINT materia_pkey PRIMARY KEY (id_materia);
-
-
---
--- Name: materia_prerrequisito materia_prerrequisito_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.materia_prerrequisito
-    ADD CONSTRAINT materia_prerrequisito_pkey PRIMARY KEY (id_materia, id_prerrequisito);
-
-
---
--- Name: matricula matricula_id_estudiante_id_grupo_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.matricula
-    ADD CONSTRAINT matricula_id_estudiante_id_grupo_key UNIQUE (id_estudiante, id_grupo);
-
-
---
--- Name: matricula matricula_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.matricula
-    ADD CONSTRAINT matricula_pkey PRIMARY KEY (id_matricula);
-
-
---
--- Name: profesor profesor_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.profesor
-    ADD CONSTRAINT profesor_pkey PRIMARY KEY (id_profesor);
-
-
---
--- Name: matricula auditar_cambio_calificacion; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER auditar_cambio_calificacion AFTER UPDATE OF calificacion ON public.matricula FOR EACH ROW WHEN ((old.calificacion IS DISTINCT FROM new.calificacion)) EXECUTE FUNCTION public.registrar_cambio_calificacion();
-
-
---
--- Name: matricula validar_cupo_matricula; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER validar_cupo_matricula BEFORE INSERT ON public.matricula FOR EACH ROW EXECUTE FUNCTION public.verificar_cupo_disponible();
-
-
---
--- Name: matricula validar_prerrequisitos_matricula; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER validar_prerrequisitos_matricula BEFORE INSERT ON public.matricula FOR EACH ROW EXECUTE FUNCTION public.verificar_prerrequisitos_aprobados();
-
-
---
--- Name: grupo grupo_id_materia_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.grupo
-    ADD CONSTRAINT grupo_id_materia_fkey FOREIGN KEY (id_materia) REFERENCES public.materia(id_materia) ON DELETE RESTRICT;
-
-
---
--- Name: grupo grupo_id_profesor_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.grupo
-    ADD CONSTRAINT grupo_id_profesor_fkey FOREIGN KEY (id_profesor) REFERENCES public.profesor(id_profesor) ON DELETE RESTRICT;
-
-
---
--- Name: materia materia_id_carrera_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.materia
-    ADD CONSTRAINT materia_id_carrera_fkey FOREIGN KEY (id_carrera) REFERENCES public.carrera(id_carrera) ON DELETE RESTRICT;
-
-
---
--- Name: materia_prerrequisito materia_prerrequisito_id_materia_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.materia_prerrequisito
-    ADD CONSTRAINT materia_prerrequisito_id_materia_fkey FOREIGN KEY (id_materia) REFERENCES public.materia(id_materia) ON DELETE CASCADE;
-
-
---
--- Name: materia_prerrequisito materia_prerrequisito_id_prerrequisito_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.materia_prerrequisito
-    ADD CONSTRAINT materia_prerrequisito_id_prerrequisito_fkey FOREIGN KEY (id_prerrequisito) REFERENCES public.materia(id_materia) ON DELETE CASCADE;
-
-
---
--- Name: matricula matricula_id_estudiante_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.matricula
-    ADD CONSTRAINT matricula_id_estudiante_fkey FOREIGN KEY (id_estudiante) REFERENCES public.estudiante(id_estudiante) ON DELETE RESTRICT;
-
-
---
--- Name: matricula matricula_id_grupo_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.matricula
-    ADD CONSTRAINT matricula_id_grupo_fkey FOREIGN KEY (id_grupo) REFERENCES public.grupo(id_grupo) ON DELETE RESTRICT;
-
-
---
--- PostgreSQL database dump complete
---
-
-\unrestrict Hx1nWLtdFbfgJMhq7bWaaN4WArHBdEpFS7odEBtXnzASTFkcUmtldsaJa3so2g5
-
+CREATE OR REPLACE FUNCTION registrar_cambio_calificacion()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO auditoria_calificacion (id_matricula, nota_anterior, nota_nueva)
+  VALUES (NEW.id_matricula, OLD.calificacion, NEW.calificacion);
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER auditar_cambio_calificacion
+AFTER UPDATE OF calificacion ON matricula
+FOR EACH ROW
+WHEN (OLD.calificacion IS DISTINCT FROM NEW.calificacion)
+EXECUTE FUNCTION registrar_cambio_calificacion();
+
+-- BONO 2. Vista: ranking de estudiantes por promedio (solo materias calificadas)
+CREATE OR REPLACE VIEW ranking_estudiantes AS
+SELECT RANK() OVER (ORDER BY ROUND(AVG(mt.calificacion), 2) DESC) AS puesto,
+       e.nombre_estudiante,
+       COUNT(mt.calificacion)                                   AS materias_calificadas,
+       ROUND(AVG(mt.calificacion), 2)                           AS promedio,
+       COALESCE(SUM(g.creditos) FILTER (WHERE mt.calificacion >= 3.0), 0) AS creditos_aprobados
+FROM estudiante e
+JOIN matricula mt ON mt.id_estudiante = e.id_estudiante
+JOIN grupo g      ON g.id_grupo       = mt.id_grupo
+WHERE mt.calificacion IS NOT NULL
+GROUP BY e.id_estudiante, e.nombre_estudiante;
