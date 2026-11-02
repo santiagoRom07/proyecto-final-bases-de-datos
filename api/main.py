@@ -50,7 +50,7 @@ def escribir(sql, params):
         conexion.rollback()
         if "still referenced" in str(e):  # se intentó borrar algo que otros datos usan
             raise HTTPException(status_code=409, detail="No se puede borrar: otros datos dependen de este")
-        raise HTTPException(status_code=422, detail="Un dato relacionado no existe (revisa el id)")
+        raise HTTPException(status_code=409, detail="Un dato relacionado no existe (revisa el id)")
     except errors.CheckViolation:
         conexion.rollback()
         raise HTTPException(status_code=422, detail="Un valor está fuera del rango permitido")

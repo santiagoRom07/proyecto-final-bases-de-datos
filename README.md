@@ -80,10 +80,18 @@ Todo `INSERT/UPDATE/DELETE` pasa por `escribir()` en `main.py`, que hace `conexi
 | Código | Cuándo |
 |---|---|
 | 404 | El registro no existe |
-| 409 | Dato repetido (UNIQUE), borrar algo que otros datos usan (FK RESTRICT), o un trigger lo rechaza |
-| 422 | Faltan datos o tienen formato incorrecto, un valor fuera de rango (CHECK) o un id relacionado que no existe |
+| 409 | Dato repetido (UNIQUE), cualquier `ForeignKeyViolation` (borrar algo que otros datos usan o apuntar a un id que no existe), o un trigger lo rechaza |
+| 422 | Faltan datos o tienen formato incorrecto, un valor fuera de rango (CHECK) o demasiado largo/grande para la columna |
 
 Todas las consultas usan parámetros `%s` (nunca se pega texto del usuario en el SQL). La conexión se lee del `.env`, que está en `.gitignore`.
+
+## Normalización
+
+Todas las tablas están en **BCNF**: en cada dependencia funcional, el lado izquierdo es una llave (superllave). Las dependencias de cada tabla están en [`base_de_datos/diccionario_datos.md`](base_de_datos/diccionario_datos.md#dependencias-funcionales).
+
+## Convención de nombres
+
+Columnas en `snake_case`, llaves primarias `id_<entidad>` con `SERIAL` y palabras clave SQL en MAYÚSCULAS. Las tablas se dejaron en **singular** (`carrera`, `materia`, `matricula`…) porque así quedaron en el modelo de la Entrega 2 y la implementación de la Entrega 3; renombrarlas obligaría a reescribir triggers, funciones, vista y API sin cambiar el modelo.
 
 ## Cambios respecto a la Entrega 2
 

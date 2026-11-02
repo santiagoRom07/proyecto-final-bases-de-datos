@@ -78,6 +78,23 @@ Historial de cambios de nota. La llena el trigger `auditar_cambio_calificacion`;
 | usuario | TEXT | NOT NULL, DEFAULT CURRENT_USER | Usuario de la base que hizo el cambio |
 | fecha | TIMESTAMP | NOT NULL, DEFAULT now() | Momento del cambio |
 
+## Dependencias funcionales
+
+En todas, el lado izquierdo es una llave (superllave), así que cada tabla está en BCNF (y por tanto en 3NF).
+
+| Tabla | Dependencias funcionales |
+|---|---|
+| carrera | `id_carrera → nombre_carrera`; `nombre_carrera → id_carrera` (llave candidata, UNIQUE) |
+| estudiante | `id_estudiante → nombre_estudiante, correo_estudiante`; `correo_estudiante → id_estudiante, nombre_estudiante` (llave candidata, UNIQUE) |
+| profesor | `id_profesor → nombre_profesor` |
+| materia | `id_materia → nombre_materia, id_carrera, creditos` |
+| materia_prerrequisito | Solo la trivial: la llave `(id_materia, id_prerrequisito)` no tiene más atributos |
+| grupo | `id_grupo → cupo, semestre, id_profesor, id_materia` |
+| matricula | `id_matricula → calificacion, id_estudiante, id_grupo`; `(id_estudiante, id_grupo) → id_matricula, calificacion` (llave candidata, UNIQUE) |
+| auditoria_calificacion | `id_auditoria → id_matricula, nota_anterior, nota_nueva, usuario, fecha` |
+
+Corrección aplicada: `creditos` estaba en `grupo`, con la dependencia transitiva `id_grupo → id_materia → creditos` (violaba 3NF); se movió a `materia`.
+
 ## Lógica en la base
 
 | Objeto | Tipo | Qué hace |
