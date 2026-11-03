@@ -93,16 +93,25 @@ Todas las tablas están en **BCNF**: en cada dependencia funcional, el lado izqu
 
 Columnas en `snake_case`, llaves primarias `id_<entidad>` con `SERIAL` y palabras clave SQL en MAYÚSCULAS. Las tablas se dejaron en **singular** (`carrera`, `materia`, `matricula`…) porque así quedaron en el modelo de la Entrega 2 y la implementación de la Entrega 3; renombrarlas obligaría a reescribir triggers, funciones, vista y API sin cambiar el modelo.
 
-## Cambios respecto a la Entrega 2
+## Cambios respecto a la Entrega 3
 
-Correcciones del modelo que pidió el docente, implementadas desde la Entrega 3:
+Qué observó el docente en la Entrega 3 y qué se hizo:
+
+| Observación | Qué se hizo |
+|---|---|
+| Faltaba documentar qué se cambió respecto a la Entrega 2. | Quedó documentado abajo (puntos 1 a 4). |
+| El índice `matricula(id_estudiante)` era redundante con el `UNIQUE (id_estudiante, id_grupo)`. | Se quitó (punto 6). |
+| No había `INSERT` en `grupo` ni en `profesor`, y el script no era reproducible. | `base_de_datos/datos.sql` tiene los `INSERT` de las 8 tablas, en orden y con columnas: 5 profesores, 10 grupos, 36 matrículas… Se probó reconstruyendo la base desde cero con `ddl_completo.sql` + `datos.sql`. |
+| Varios `UPDATE` y `DELETE` devolvían 0 filas sin avisar. | La API usa `RETURNING`: si el `WHERE` no encuentra la fila, responde **404** ("Esa carrera no existe") en vez de quedarse en silencio. |
+
+Correcciones del modelo respecto a la Entrega 2 (hechas desde la Entrega 3):
 
 1. **Prerrequisitos recursivos.** Antes eran un atributo suelto de `materia` (solo cabía uno). Ahora hay una tabla puente `materia_prerrequisito` (M:N de materia consigo misma) con PK compuesta, dos FK a `materia` y `CHECK (id_materia <> id_prerrequisito)`.
 2. **Matrícula con FK a grupo.** Antes `matricula` solo se unía a `estudiante`; no se sabía en qué grupo estaba. Ahora tiene FK a `estudiante` y a `grupo`, más `UNIQUE (id_estudiante, id_grupo)`.
 3. **Materia con FK a carrera.** Antes `carrera` estaba desconectada. Ahora `materia.id_carrera` es NOT NULL con FK a `carrera` (1:N).
 4. **Cardinalidad Grupo–Materia.** Antes estaba como M:N. Ahora es 1:N: una FK `id_materia` en `grupo`, sin tabla intermedia.
 
-Cambios posteriores (Entregas 3, 4 y final):
+Cambios posteriores (Entrega 4 y final):
 
 5. **Reglas `ON DELETE` explícitas.** `RESTRICT` en materia, grupo y matrícula (no se borra lo que tiene historia académica); `CASCADE` en `materia_prerrequisito` (si se borra una materia, sus prerrequisitos ya no tienen sentido).
 6. **Se quitó el índice redundante `idx_matricula_estudiante`.** El `UNIQUE (id_estudiante, id_grupo)` ya crea un índice que empieza por `id_estudiante`, así que el otro sobraba.
