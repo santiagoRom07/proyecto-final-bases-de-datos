@@ -111,7 +111,7 @@ Correcciones del modelo respecto a la Entrega 2 (hechas desde la Entrega 3):
 3. **Materia con FK a carrera.** Antes `carrera` estaba desconectada. Ahora `materia.id_carrera` es NOT NULL con FK a `carrera` (1:N).
 4. **Cardinalidad Grupo–Materia.** Antes estaba como M:N. Ahora es 1:N: una FK `id_materia` en `grupo`, sin tabla intermedia.
 
-Cambios posteriores (Entrega 4 y final):
+Cambios posteriores (final):
 
 5. **Reglas `ON DELETE` explícitas.** `RESTRICT` en materia, grupo y matrícula (no se borra lo que tiene historia académica); `CASCADE` en `materia_prerrequisito` (si se borra una materia, sus prerrequisitos ya no tienen sentido).
 6. **Se quitó el índice redundante `idx_matricula_estudiante`.** El `UNIQUE (id_estudiante, id_grupo)` ya crea un índice que empieza por `id_estudiante`, así que el otro sobraba.
